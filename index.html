@@ -386,7 +386,7 @@ function renderCard(o, i, { dest, etaLabel, etaExtra }) {
       <div class="card-top">
         ${badge(o.board.color, o.board.color)}
         <span class="headsign">${o.board.headsign}</span>
-        <span class="departs">${o.board.mins === 0 ? 'now' : `<small>in </small>${o.board.mins}<small> min</small>`}</span>
+        <span class="departs">${o.board.mins === 0 ? 'now' : `${o.board.mins}<small> min</small>`}</span>
       </div>
       <div class="legs">${legs}</div>
       ${foot}
