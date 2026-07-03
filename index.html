@@ -22,8 +22,9 @@
     --orange: #ff9933;
     --yellow: #ffe14d;
     --badge-ink: #16181c;
+    --border: rgba(255,255,255,0.09);
     --divider: rgba(255,255,255,0.06);
-    --card-shadow: 0 1px 3px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04);
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
     --active-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
     --radius: 16px;
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -44,8 +45,9 @@
       --orange: #e07f16;
       --yellow: #d4ac00;
       --badge-ink: #ffffff;
-      --divider: rgba(0,0,0,0.08);
-      --card-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05);
+      --border: #e4e4e0;
+      --divider: rgba(0,0,0,0.07);
+      --card-shadow: 0 1px 2px rgba(0,0,0,0.05);
       --active-shadow: 0 1px 2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
       color-scheme: light;
     }
@@ -151,6 +153,7 @@
   #board { margin-top: 14px; display: grid; gap: 10px; }
   .card {
     background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 14px 16px 13px;
     box-shadow: var(--card-shadow);
@@ -165,7 +168,7 @@
   }
   .card-top {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
   }
   .badge {
@@ -175,7 +178,6 @@
     padding: 3px 7px;
     border-radius: 5px;
     color: var(--badge-ink);
-    align-self: center;
   }
   .badge[data-line="YELLOW"] { color: #16181c; }
   .headsign { font-size: 14px; color: var(--muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -240,7 +242,6 @@
   .delta { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
   .delta.saves { color: var(--green); }
 
-  .note { margin: 14px 4px 0; font-size: 12.5px; color: var(--faint); text-wrap: pretty; }
   #status { margin: 14px 4px 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
   #status.error { color: var(--red); }
   .empty { padding: 28px 8px; text-align: center; color: var(--muted); font-size: 15px; }
@@ -273,7 +274,6 @@
 </div>
 
 <div id="board" aria-live="polite"></div>
-<p class="note" id="note"></p>
 <p id="status"></p>
 
 <script>
@@ -292,9 +292,6 @@ const NAMES = {
 };
 const XFER = ['MCAR', '19TH', '12TH'];  // stations shared by both lines, in ride order
 const XFER_BUF = 1;                     // min needed to make a same-platform connection
-// ponytail: fixed Muni N estimate — 3 walk to Muni platform + 4 typical wait + 7 ride
-// to 2nd & King + 1 walk to 128 King. Swap for 511.org real-time if this ever matters.
-const N_LEG = 15;
 const LINE_HEX = { RED: 'var(--red)', ORANGE: 'var(--orange)', YELLOW: 'var(--yellow)' };
 
 const $ = s => document.querySelector(s);
@@ -364,7 +361,7 @@ function badge(color, text) {
   return `<span class="badge" data-line="${color}" style="background:${LINE_HEX[color]}">${text}</span>`;
 }
 
-function renderCard(o, i, { dest, etaLabel, etaExtra }) {
+function renderCard(o, i, { dest, etaLabel }) {
   const boardHex = LINE_HEX[o.board.color];
   let legs, eta, delta;
 
@@ -388,7 +385,7 @@ function renderCard(o, i, { dest, etaLabel, etaExtra }) {
 
   const foot = o.arrive === Infinity ? '' : `
     <div class="card-foot">
-      <span class="eta">${etaLabel} <b>${clockAt(o.arrive + etaExtra)}</b></span>
+      <span class="eta">${etaLabel} <b>${clockAt(o.arrive)}</b></span>
       ${delta}
     </div>`;
 
@@ -416,17 +413,13 @@ async function refresh() {
       : { origin: sf, dest: home, dir: 'North', directLine: 'RED', xferLine: 'YELLOW', connLines: ['RED', 'ORANGE'], etds };
 
     const options = buildOptions(cfg);
-    const view = toSF
-      ? { dest: sf, etaLabel: 'at office', etaExtra: N_LEG }
-      : { dest: home, etaLabel: `at ${NAMES[home]}`, etaExtra: 0 };
+    const dest = toSF ? sf : home;
+    const view = { dest, etaLabel: `at ${NAMES[dest]}` };
 
     $('#board').innerHTML = options.length
       ? options.map((o, i) => renderCard(o, i, view)).join('')
       : `<div class="empty">No trains showing from ${NAMES[cfg.origin]} right now.</div>`;
 
-    $('#note').textContent = toSF
-      ? `Office arrival includes ~${N_LEG} min for the Muni N from ${NAMES[sf]} to 128 King St.`
-      : `Times end at ${NAMES[home]} fare gates.`;
     status.className = '';
     status.textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every minute`;
     animateNext = false;
