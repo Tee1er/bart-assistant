@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f2ef" media="(prefers-color-scheme: light)">
+<title>Which train?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%2316181c'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%23f5b942'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #16181c;
+    --surface: #1e2126;
+    --control: #1e2126;
+    --control-active: #262a30;
+    --ink: #e8e6e1;
+    --muted: #8b8e94;
+    --faint: #55585e;
+    --amber: #f5b942;
+    --green: #58c08a;
+    --red: #f0554d;
+    --orange: #ff9933;
+    --yellow: #ffe14d;
+    --badge-ink: #16181c;
+    --divider: rgba(255,255,255,0.06);
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04);
+    --active-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+    --radius: 16px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f2f2ef;
+      --surface: #ffffff;
+      --control: #e7e7e2;
+      --control-active: #ffffff;
+      --ink: #1d1f23;
+      --muted: #6b6e74;
+      --faint: #a6a9ae;
+      --amber: #9c6d00;
+      --green: #23784f;
+      --red: #d63a32;
+      --orange: #e07f16;
+      --yellow: #d4ac00;
+      --badge-ink: #ffffff;
+      --divider: rgba(0,0,0,0.08);
+      --card-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05);
+      --active-shadow: 0 1px 2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+      color-scheme: light;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.45 -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 2px 14px;
+  }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  #clock {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* segmented direction control */
+  .seg {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    background: var(--control);
+    border-radius: 13px;
+    padding: 3px;
+  }
+  .seg button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    min-height: 44px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition-property: background-color, color, box-shadow, scale;
+    transition-duration: 0.18s;
+    transition-timing-function: var(--ease-out);
+  }
+  .seg button:active { scale: 0.96; }
+  .seg button[aria-pressed="true"] {
+    background: var(--control-active);
+    color: var(--ink);
+    box-shadow: var(--active-shadow);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .seg button:not([aria-pressed="true"]):hover,
+    .chip:not([aria-pressed="true"]):hover { color: var(--ink); }
+  }
+
+  /* home station chips */
+  .stations {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 14px 2px 4px;
+    flex-wrap: wrap;
+  }
+  .stations .eyebrow { margin-right: 2px; }
+  .chip {
+    appearance: none;
+    border: 0;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--control);
+    padding: 8px 12px;
+    min-height: 40px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition-property: background-color, color, box-shadow, scale;
+    transition-duration: 0.15s;
+    transition-timing-function: var(--ease-out);
+  }
+  .chip:active { scale: 0.96; }
+  .chip[aria-pressed="true"] { background: var(--control-active); color: var(--ink); box-shadow: var(--active-shadow); }
+
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  /* option cards */
+  #board { margin-top: 14px; display: grid; gap: 10px; }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 16px 13px;
+    box-shadow: var(--card-shadow);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card.enter { animation: rise 0.35s var(--ease-out) backwards; }
+    @keyframes rise { from { opacity: 0; translate: 0 10px; filter: blur(4px); } }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card.enter { animation: fade 0.2s ease backwards; }
+    @keyframes fade { from { opacity: 0; } }
+  }
+  .card-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 7px;
+    border-radius: 5px;
+    color: var(--badge-ink);
+    align-self: center;
+  }
+  .badge[data-line="YELLOW"] { color: #16181c; }
+  .headsign { font-size: 14px; color: var(--muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .departs {
+    font-variant-numeric: tabular-nums;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--amber);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .departs small { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+
+  /* route strip */
+  .legs { margin: 10px 0 2px; }
+  .leg {
+    position: relative;
+    padding: 3px 0 3px 18px;
+    font-size: 14px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .leg::before {
+    content: "";
+    position: absolute;
+    left: 4px; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--leg, var(--faint));
+  }
+  .leg:first-child::before { border-radius: 2px 2px 0 0; }
+  .leg:last-child::before { border-radius: 0 0 2px 2px; }
+  .leg.node { padding-top: 6px; padding-bottom: 6px; color: var(--ink); }
+  .leg.node::before { background: linear-gradient(var(--leg-from), var(--leg-to)); }
+  .leg.node::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    width: 7px; height: 7px;
+    translate: 0 -50%;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+  }
+  .leg .wait { color: var(--amber); font-weight: 600; }
+
+  .card-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 9px;
+    padding-top: 10px;
+    box-shadow: 0 -1px 0 var(--divider);
+  }
+  .eta { font-size: 15px; color: var(--muted); }
+  .eta b {
+    color: var(--ink);
+    font-size: 19px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .delta { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .delta.saves { color: var(--green); }
+
+  .note { margin: 14px 4px 0; font-size: 12.5px; color: var(--faint); text-wrap: pretty; }
+  #status { margin: 14px 4px 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #status.error { color: var(--red); }
+  .empty { padding: 28px 8px; text-align: center; color: var(--muted); font-size: 15px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Which train?</h1>
+  <div id="clock" aria-hidden="true"></div>
+</header>
+
+<div class="seg" role="group" aria-label="Direction">
+  <button id="dir-sf" aria-pressed="false">To SF</button>
+  <button id="dir-home" aria-pressed="false">To Berkeley</button>
+</div>
+
+<div class="stations" role="group" aria-label="Berkeley station">
+  <span class="eyebrow" id="stations-label"></span>
+  <button class="chip" data-stn="NBRK" aria-pressed="false">North Berkeley</button>
+  <button class="chip" data-stn="DBRK" aria-pressed="false">Downtown</button>
+  <button class="chip" data-stn="ASHB" aria-pressed="false">Ashby</button>
+</div>
+
+<div id="board" aria-live="polite"></div>
+<p class="note" id="note"></p>
+<p id="status"></p>
+
+<script>
+'use strict';
+
+const KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
+const ETD_URL = s => `https://api.bart.gov/api/etd.aspx?cmd=etd&json=y&key=${KEY}&orig=${s}`;
+
+// Minutes along the Richmond–SF corridor, fitted to the sched API (±1 min).
+// run(a,b) = |pos a − pos b|. Re-check against sched.aspx if BART changes timetables.
+const POS = { NBRK: 23.5, DBRK: 21.5, ASHB: 19.5, MCAR: 16.5, '19TH': 13.5, '12TH': 11.5, EMBR: 0 };
+const NAMES = {
+  NBRK: 'North Berkeley', DBRK: 'Downtown Berkeley', ASHB: 'Ashby',
+  MCAR: 'MacArthur', '19TH': '19th St Oakland', '12TH': '12th St Oakland', EMBR: 'Embarcadero',
+};
+const XFER = ['MCAR', '19TH', '12TH'];  // stations shared by both lines, in ride order
+const XFER_BUF = 1;                     // min needed to make a same-platform connection
+// ponytail: fixed Muni N estimate — 3 walk to Muni platform + 4 typical wait + 7 ride
+// to 2nd & King + 1 walk to 128 King. Swap for 511.org real-time if this ever matters.
+const N_LEG = 15;
+const LINE_HEX = { RED: 'var(--red)', ORANGE: 'var(--orange)', YELLOW: 'var(--yellow)' };
+
+const $ = s => document.querySelector(s);
+const run = (a, b) => Math.round(Math.abs(POS[a] - POS[b]));
+const arr = x => (Array.isArray(x) ? x : x ? [x] : []);
+
+let home = localStorage.getItem('home') || 'DBRK';
+let toSF = new Date().getHours() < 13;
+let animateNext = true; // stagger cards on load and direction/station change, not on silent refresh
+
+async function fetchEtd(stn) {
+  const res = await fetch(ETD_URL(stn));
+  if (!res.ok) throw new Error(`BART API ${res.status}`);
+  const json = await res.json();
+  const trains = [];
+  for (const dest of arr(json.root.station[0].etd)) {
+    for (const e of arr(dest.estimate)) {
+      if (e.cancelflag === '1') continue;
+      trains.push({
+        dest: dest.abbreviation,
+        headsign: dest.destination,
+        mins: e.minutes === 'Leaving' ? 0 : +e.minutes,
+        color: e.color,
+        dir: e.direction,
+      });
+    }
+  }
+  return trains.sort((a, b) => a.mins - b.mins);
+}
+
+// Ride the first available train (directLine is one-seat; xferLine diverges after
+// the shared segment). For each xferLine departure, find the best shared station
+// to hop off and catch a connLines train the rest of the way.
+function buildOptions({ origin, dest, dir, directLine, xferLine, connLines, etds }) {
+  const options = [];
+  const here = etds[origin];
+
+  for (const t of here.filter(t => t.dir === dir && t.color === directLine).slice(0, 2)) {
+    options.push({ board: t, legs: [], arrive: t.mins + run(origin, dest), direct: true });
+  }
+
+  for (const t of here.filter(t => t.dir === dir && t.color === xferLine).slice(0, 2)) {
+    let best = null;
+    for (const s of XFER) {
+      const atXfer = t.mins + run(origin, s);
+      const conn = etds[s].find(c =>
+        c.dir === dir && connLines.includes(c.color) && c.mins >= atXfer + XFER_BUF);
+      if (!conn) continue;
+      const arrive = conn.mins + run(s, dest);
+      if (!best || arrive < best.arrive) best = { stn: s, ride: run(origin, s), wait: conn.mins - atXfer, conn, arrive };
+    }
+    options.push({ board: t, xfer: best, arrive: best?.arrive ?? Infinity, direct: false });
+  }
+
+  const baseline = Math.min(...options.filter(o => o.direct).map(o => o.arrive), Infinity);
+  for (const o of options) o.delta = baseline - o.arrive;
+  return options.sort((a, b) => a.arrive - b.arrive);
+}
+
+function clockAt(minsFromNow) {
+  const d = new Date(Date.now() + minsFromNow * 60000);
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function badge(color, text) {
+  return `<span class="badge" data-line="${color}" style="background:${LINE_HEX[color]}">${text}</span>`;
+}
+
+function renderCard(o, i, { dest, etaLabel, etaExtra }) {
+  const boardHex = LINE_HEX[o.board.color];
+  let legs, eta, delta;
+
+  if (o.direct) {
+    legs = `<div class="leg" style="--leg:${boardHex}">${o.arrive - o.board.mins} min direct to ${NAMES[dest]}</div>`;
+    delta = `<span class="delta">one seat</span>`;
+  } else if (o.xfer) {
+    const x = o.xfer, connHex = LINE_HEX[x.conn.color];
+    legs = `
+      <div class="leg" style="--leg:${boardHex}">${x.ride} min to ${NAMES[x.stn]}</div>
+      <div class="leg node" style="--leg-from:${boardHex};--leg-to:${connHex}">
+        <span class="wait">wait ${x.wait} min</span> · ${x.conn.color.toLowerCase()} to ${x.conn.headsign}</div>
+      <div class="leg" style="--leg:${connHex}">${run(x.stn, dest)} min to ${NAMES[dest]}</div>`;
+    delta = !Number.isFinite(o.delta) ? ''
+      : o.delta === 0 ? `<span class="delta">same as direct</span>`
+      : `<span class="delta ${o.delta > 0 ? 'saves' : ''}">${o.delta > 0 ? `saves ${o.delta} min` : `${-o.delta} min slower`}</span>`;
+  } else {
+    legs = `<div class="leg">no connection showing yet — check again closer to departure</div>`;
+    delta = '';
+  }
+
+  const foot = o.arrive === Infinity ? '' : `
+    <div class="card-foot">
+      <span class="eta">${etaLabel} <b>${clockAt(o.arrive + etaExtra)}</b></span>
+      ${delta}
+    </div>`;
+
+  return `
+    <article class="card${animateNext ? ' enter' : ''}" style="animation-delay:${i * 60}ms">
+      <div class="card-top">
+        ${badge(o.board.color, o.board.color)}
+        <span class="headsign">${o.board.headsign}</span>
+        <span class="departs">${o.board.mins === 0 ? 'now' : `<small>in </small>${o.board.mins}<small> min</small>`}</span>
+      </div>
+      <div class="legs">${legs}</div>
+      ${foot}
+    </article>`;
+}
+
+async function refresh() {
+  const status = $('#status');
+  try {
+    const stations = [toSF ? home : 'EMBR', ...XFER];
+    const results = await Promise.all(stations.map(fetchEtd));
+    const etds = Object.fromEntries(stations.map((s, i) => [s, results[i]]));
+
+    const cfg = toSF
+      ? { origin: home, dest: 'EMBR', dir: 'South', directLine: 'RED', xferLine: 'ORANGE', connLines: ['YELLOW'], etds }
+      : { origin: 'EMBR', dest: home, dir: 'North', directLine: 'RED', xferLine: 'YELLOW', connLines: ['RED', 'ORANGE'], etds };
+
+    const options = buildOptions(cfg);
+    const view = toSF
+      ? { dest: 'EMBR', etaLabel: 'at office', etaExtra: N_LEG }
+      : { dest: home, etaLabel: `at ${NAMES[home]}`, etaExtra: 0 };
+
+    $('#board').innerHTML = options.length
+      ? options.map((o, i) => renderCard(o, i, view)).join('')
+      : `<div class="empty">No trains showing from ${NAMES[cfg.origin]} right now.</div>`;
+
+    $('#note').textContent = toSF
+      ? `Office arrival includes ~${N_LEG} min for the Muni N from Embarcadero to 128 King St.`
+      : `Times end at ${NAMES[home]} fare gates.`;
+    status.className = '';
+    status.textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every minute`;
+    animateNext = false;
+  } catch (err) {
+    status.className = 'error';
+    status.textContent = `Couldn’t reach the BART API (${err.message}). Retrying in a minute.`;
+  }
+}
+
+function syncControls() {
+  $('#dir-sf').setAttribute('aria-pressed', toSF);
+  $('#dir-home').setAttribute('aria-pressed', !toSF);
+  $('#stations-label').textContent = toSF ? 'From' : 'To';
+  document.querySelectorAll('.chip').forEach(c =>
+    c.setAttribute('aria-pressed', c.dataset.stn === home));
+}
+
+$('#dir-sf').onclick = () => { toSF = true; animateNext = true; syncControls(); refresh(); };
+$('#dir-home').onclick = () => { toSF = false; animateNext = true; syncControls(); refresh(); };
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+  home = c.dataset.stn;
+  localStorage.setItem('home', home);
+  animateNext = true;
+  syncControls();
+  refresh();
+});
+
+setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString(); }, 1000);
+setInterval(refresh, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+syncControls();
+refresh();
+</script>
+</body>
+</html>
