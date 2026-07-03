@@ -115,7 +115,9 @@
     .chip:not([aria-pressed="true"]):hover { color: var(--ink); }
   }
 
-  /* home station chips */
+  /* station pickers — origin row shown first for the active direction */
+  #pickers { display: flex; flex-direction: column; }
+  body.to-home #row-sf { order: -1; }
   .stations {
     display: flex;
     gap: 8px;
@@ -256,11 +258,18 @@
   <button id="dir-home" aria-pressed="false">To Berkeley</button>
 </div>
 
-<div class="stations" role="group" aria-label="Berkeley station">
-  <span class="eyebrow" id="stations-label"></span>
-  <button class="chip" data-stn="NBRK" aria-pressed="false">North Berkeley</button>
-  <button class="chip" data-stn="DBRK" aria-pressed="false">Downtown</button>
-  <button class="chip" data-stn="ASHB" aria-pressed="false">Ashby</button>
+<div id="pickers">
+  <div class="stations" role="group" aria-label="East Bay station" id="row-eb">
+    <span class="eyebrow"></span>
+    <button class="chip" data-group="home" data-stn="DBRK" aria-pressed="false">Downtown</button>
+    <button class="chip" data-group="home" data-stn="ASHB" aria-pressed="false">Ashby</button>
+  </div>
+  <div class="stations" role="group" aria-label="SF station" id="row-sf">
+    <span class="eyebrow"></span>
+    <button class="chip" data-group="sf" data-stn="EMBR" aria-pressed="false">Embarcadero</button>
+    <button class="chip" data-group="sf" data-stn="MONT" aria-pressed="false">Montgomery</button>
+    <button class="chip" data-group="sf" data-stn="POWL" aria-pressed="false">Powell</button>
+  </div>
 </div>
 
 <div id="board" aria-live="polite"></div>
@@ -275,10 +284,11 @@ const ETD_URL = s => `https://api.bart.gov/api/etd.aspx?cmd=etd&json=y&key=${KEY
 
 // Minutes along the Richmond–SF corridor, fitted to the sched API (±1 min).
 // run(a,b) = |pos a − pos b|. Re-check against sched.aspx if BART changes timetables.
-const POS = { NBRK: 23.5, DBRK: 21.5, ASHB: 19.5, MCAR: 16.5, '19TH': 13.5, '12TH': 11.5, EMBR: 0 };
+const POS = { DBRK: 21.5, ASHB: 19.5, MCAR: 16.5, '19TH': 13.5, '12TH': 11.5, EMBR: 0, MONT: -1, POWL: -3 };
 const NAMES = {
-  NBRK: 'North Berkeley', DBRK: 'Downtown Berkeley', ASHB: 'Ashby',
-  MCAR: 'MacArthur', '19TH': '19th St Oakland', '12TH': '12th St Oakland', EMBR: 'Embarcadero',
+  DBRK: 'Downtown Berkeley', ASHB: 'Ashby',
+  MCAR: 'MacArthur', '19TH': '19th St Oakland', '12TH': '12th St Oakland',
+  EMBR: 'Embarcadero', MONT: 'Montgomery', POWL: 'Powell',
 };
 const XFER = ['MCAR', '19TH', '12TH'];  // stations shared by both lines, in ride order
 const XFER_BUF = 1;                     // min needed to make a same-platform connection
@@ -291,7 +301,8 @@ const $ = s => document.querySelector(s);
 const run = (a, b) => Math.round(Math.abs(POS[a] - POS[b]));
 const arr = x => (Array.isArray(x) ? x : x ? [x] : []);
 
-let home = localStorage.getItem('home') || 'DBRK';
+let home = ['DBRK', 'ASHB'].includes(localStorage.getItem('home')) ? localStorage.getItem('home') : 'DBRK';
+let sf = ['EMBR', 'MONT', 'POWL'].includes(localStorage.getItem('sf')) ? localStorage.getItem('sf') : 'EMBR';
 let toSF = new Date().getHours() < 13;
 let animateNext = true; // stagger cards on load and direction/station change, not on silent refresh
 
@@ -396,17 +407,17 @@ function renderCard(o, i, { dest, etaLabel, etaExtra }) {
 async function refresh() {
   const status = $('#status');
   try {
-    const stations = [toSF ? home : 'EMBR', ...XFER];
+    const stations = [toSF ? home : sf, ...XFER];
     const results = await Promise.all(stations.map(fetchEtd));
     const etds = Object.fromEntries(stations.map((s, i) => [s, results[i]]));
 
     const cfg = toSF
-      ? { origin: home, dest: 'EMBR', dir: 'South', directLine: 'RED', xferLine: 'ORANGE', connLines: ['YELLOW'], etds }
-      : { origin: 'EMBR', dest: home, dir: 'North', directLine: 'RED', xferLine: 'YELLOW', connLines: ['RED', 'ORANGE'], etds };
+      ? { origin: home, dest: sf, dir: 'South', directLine: 'RED', xferLine: 'ORANGE', connLines: ['YELLOW'], etds }
+      : { origin: sf, dest: home, dir: 'North', directLine: 'RED', xferLine: 'YELLOW', connLines: ['RED', 'ORANGE'], etds };
 
     const options = buildOptions(cfg);
     const view = toSF
-      ? { dest: 'EMBR', etaLabel: 'at office', etaExtra: N_LEG }
+      ? { dest: sf, etaLabel: 'at office', etaExtra: N_LEG }
       : { dest: home, etaLabel: `at ${NAMES[home]}`, etaExtra: 0 };
 
     $('#board').innerHTML = options.length
@@ -414,7 +425,7 @@ async function refresh() {
       : `<div class="empty">No trains showing from ${NAMES[cfg.origin]} right now.</div>`;
 
     $('#note').textContent = toSF
-      ? `Office arrival includes ~${N_LEG} min for the Muni N from Embarcadero to 128 King St.`
+      ? `Office arrival includes ~${N_LEG} min for the Muni N from ${NAMES[sf]} to 128 King St.`
       : `Times end at ${NAMES[home]} fare gates.`;
     status.className = '';
     status.textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every minute`;
@@ -428,16 +439,18 @@ async function refresh() {
 function syncControls() {
   $('#dir-sf').setAttribute('aria-pressed', toSF);
   $('#dir-home').setAttribute('aria-pressed', !toSF);
-  $('#stations-label').textContent = toSF ? 'From' : 'To';
+  document.body.classList.toggle('to-home', !toSF);
+  $('#row-eb .eyebrow').textContent = toSF ? 'From' : 'To';
+  $('#row-sf .eyebrow').textContent = toSF ? 'To' : 'From';
   document.querySelectorAll('.chip').forEach(c =>
-    c.setAttribute('aria-pressed', c.dataset.stn === home));
+    c.setAttribute('aria-pressed', c.dataset.stn === (c.dataset.group === 'home' ? home : sf)));
 }
 
 $('#dir-sf').onclick = () => { toSF = true; animateNext = true; syncControls(); refresh(); };
 $('#dir-home').onclick = () => { toSF = false; animateNext = true; syncControls(); refresh(); };
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
-  home = c.dataset.stn;
-  localStorage.setItem('home', home);
+  if (c.dataset.group === 'home') home = c.dataset.stn; else sf = c.dataset.stn;
+  localStorage.setItem(c.dataset.group, c.dataset.stn);
   animateNext = true;
   syncControls();
   refresh();
